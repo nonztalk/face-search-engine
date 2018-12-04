@@ -1,0 +1,5 @@
+# Ignore cache
+__pycache__/
+
+# Ignore model
+20180402-114759/

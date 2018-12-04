@@ -3,23 +3,13 @@ import cv2
 import pickle
 import numpy as np
 import tensorflow as tf
-from glob import glob
 from tensorflow.python.framework import meta_graph
 from pyseeta import Detector
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-
-# model paths and settings
-MODEL_PATH = '20180402-114759/model-20180402-114759'
-IMAGE_SZ = 160
-
-# pyseeta setting
-MIN_FACE_SIZE = 20
-
 
 class Model:
-    def __init__(self, path=MODEL_PATH, name='xxx'):
-        images = tf.placeholder(tf.uint8, shape=(None, IMAGE_SZ, IMAGE_SZ, 3), name="images")
+    def __init__(self, path, image_size, name='xxx'):
+        images = tf.placeholder(tf.uint8, shape=(None, image_size, image_size, 3), name="images")
         batch = (tf.cast(images, tf.float32) - 127.5) / 128.0
         self.images = images
         is_training = tf.constant(False)
@@ -32,44 +22,93 @@ class Model:
         self.loader = lambda sess: self.saver.restore(sess, path)
 
 
-def detect_clip_face(origin_image, target_dir):
-    detector = Detector()
-    detector.set_min_face_size(MIN_FACE_SIZE)
+class Face:
+    def __init__(self, image_path, output_dir, min_face_size):
+        self.image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+        self.image_grey = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+        self.image_size = self.image.shape  # height, width, channel
+        self.output_dir = output_dir
+        self.min_face_size = min_face_size
 
-    # detect faces
-    image_color = cv2.imread(origin_image, cv2.IMREAD_COLOR)
-    image_gray = cv2.cvtColor(image_color, cv2.COLOR_BGR2GRAY)
-    faces = detector.detect(image_gray)
+        self.faces = None
+        self.faces_matrices = []
+        self.num_faces = 0
+        self.face_features = []
+        self.face_info = []
 
-    # clip and store faces
-    cv2.imwrite(os.path.join(target_dir, "origin.png"), image_color)  # store the original picture
-    clipped_faces = []
-    for i, face in enumerate(faces):
-        # store the clipped faces
-        clipped_face = image_color[face.top:face.bottom, face.left:face.right]
-        clipped_faces.append(clipped_face)
-        cv2.imwrite(os.path.join(target_dir, str(i) + ".png"), clipped_face)
-        # store the labeled faces
-        cv2.rectangle(image_color, (face.left, face.top), (face.right, face.bottom), (0, 255, 0), thickness=2)
-        cv2.putText(image_color, str(i), (face.left, face.bottom), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0),
+    def detect_face(self):
+        detector = Detector()
+        detector.set_min_face_size(self.min_face_size)
+        print('Detecting and clipping faces =>>>')
+        self.faces = detector.detect(self.image_grey)
+        self.num_faces = len(self.faces)
+        print('%d faces detected' % self.num_faces)
+        detector.release()
+
+    def write_origin(self):
+        cv2.imwrite(os.path.join(self.output_dir, 'origin.png'), self.image)
+        print("Origin writing Success!")
+
+    def write_clip(self, write_to_file = False):
+        for i, face in enumerate(self.faces):
+            if face.left < 0:
+                face.left = 0
+            if face.bottom < 0:
+                face.bottom = 0
+            if face.right > self.image_size[1]:
+                face.right = self.image_size[1]
+            if face.top > self.image_size[0]:
+                face.top = self.image_size[0]
+            clipped_face = self.image[face.top:face.bottom, face.left:face.right]
+            self.faces_matrices.append(clipped_face)
+            if write_to_file:
+                cv2.imwrite(os.path.join(self.output_dir, str(i) + ".png"), clipped_face)
+        print("Clip writing Success!")
+
+    def write_label(self):
+        for i, face in enumerate(self.faces):
+            cv2.rectangle(self.image, (face.left, face.top), (face.right, face.bottom), (0, 255, 0),
+                          thickness=2)
+            cv2.putText(self.image, str(i), (face.left, face.bottom), cv2.FONT_HERSHEY_COMPLEX, 1,
+                        (0, 255, 0),
+                        thickness=1)
+        cv2.imwrite(os.path.join(self.output_dir, "label.png"), self.image)
+        print("Label writing Success!")
+
+    def draw_bounding_box(self, face_index):
+        assert face_index < self.num_faces, 'We only have %s faces' % self.num_faces
+        face = [f for f in self.face_info if f['ID'] == eval(face_index)][0]
+        cv2.rectangle(self.image, (face['left'], face['top']), (face['right'], face['bottom']), (0, 255, 0), thickness=2)
+        cv2.putText(self.image, str(face_index), (face['left'], face['bottom']), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0),
                     thickness=1)
-        cv2.imwrite(os.path.join(target_dir, "labeled.png"), image_color)
 
-    detector.release()
+    def vectorize(self, sess, model, model_input_size=(160, 160)):
+        for i, face in enumerate(self.faces_matrices, start=1):
+            print("Vectoring the %d/%d face ... " % (i, self.num_faces))
+            batch = cv2.resize(face, model_input_size)
+            batch = batch[np.newaxis, :, :, :]
+            embeddings = sess.run(model.embeddings, feed_dict={model.images: batch})
+            self.face_features.append(embeddings)
 
-    return faces, clipped_faces
+    def write_info(self, filename):
+        print('Writing the information file =>>>')
+        for i, face in enumerate(self.faces):
+            self.face_info.append({
+                'ID': i,
+                'left': face.left,
+                'right': face.right,
+                'top': face.top,
+                'bottom': face.bottom,
+                'score': face.score,
+                'vector': self.face_features[i]
+            })
+        write_pickle(target_dir=self.output_dir, filename=filename, obj=self.face_info)
+        print("Done!\n")
 
-
-def face_vector(faces):
-    face_vectors = []
-    for i, face in enumerate(faces, start=1):
-        print("Vectoring the %d/%d face ... " % (i, len(faces)))
-        batch = cv2.resize(face, (IMAGE_SZ, IMAGE_SZ))
-        batch = batch[np.newaxis, :, :, :]
-        embeddings = sess.run(model.embeddings, feed_dict={model.images: batch})
-        print(embeddings.shape)
-        face_vectors.append(embeddings)
-    return face_vectors
+    def load_info(self, filename):
+        info = read_pickle(target_dir=self.output_dir, filename=filename)
+        self.face_info = info
+        self.num_faces = len(info)
 
 
 def write_pickle(target_dir, filename, obj):
@@ -80,43 +119,27 @@ def read_pickle(target_dir, filename):
     return pickle.load(open(os.path.join(target_dir, filename), 'rb'))
 
 
-if __name__ == '__main__':
-    model = Model()
-    config = tf.ConfigProto()
-    config.gpu_options.allow_growth = True
-
-    print("Load faceNet =>>>")
-    with tf.Session(config=config) as sess:
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
-        model.loader(sess)
-        print("Done!\n")
-
-        images = glob('./sample_image/*.*')
-        for image in images:
-            print('Processing %s ... \n' % image)
-            faces_info = []
-            target_dir = "./sample_output/" + os.path.splitext(os.path.basename(image))[0]
-            os.system('mkdir -p ' + target_dir)
-
-            print('Detecting and clipping faces =>>>')
-            faces, clipped_faces = detect_clip_face(origin_image=image, target_dir=target_dir)
-            print('%d faces detected\n' % len(clipped_faces))
-
-            print('Vectoring clipped faces =>>>')
-            face_vectors = face_vector(faces=clipped_faces)
-            print("Done!\n")
-
-            print('Writing the information file =>>>')
-            for i, face in enumerate(faces):
-                faces_info.append({
-                    'ID': i,
-                    'left': face.left,
-                    'right': face.right,
-                    'top': face.top,
-                    'bottom': face.bottom,
-                    'score': face.score,
-                    'vector': face_vectors[i]
-                })
-            write_pickle(target_dir=target_dir, filename="info", obj=faces_info)
-            print("Done!\n")
+# if __name__ == '__main__':
+#     model = Model()
+#     config = tf.ConfigProto()
+#     config.gpu_options.allow_growth = True
+#
+#     print("Load faceNet =>>>")
+#     with tf.Session(config=config) as sess:
+#         sess.run(tf.global_variables_initializer())
+#         sess.run(tf.local_variables_initializer())
+#         model.loader(sess)
+#         print("Done!\n")
+#
+#         for image in ORIGINAL_IMAGE:
+#             print('Processing %s ... \n' % image)
+#             faces_info = []
+#             target_dir = IMAGE_OUTPUT_PATH + os.path.splitext(os.path.basename(image))[0]
+#             os.system('mkdir -p ' + target_dir)
+#
+#             face = Face(image_path=image, output_dir=target_dir, min_face_size=MIN_FACE_SIZE)
+#             face.detect_face()
+#             face.write_origin()
+#             face.write_clip()
+#             face.vectorize(sess=sess, model=model, model_input_size=(IMAGE_SZ, IMAGE_SZ))
+#             face.write_info("info")
