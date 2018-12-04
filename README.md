@@ -59,7 +59,7 @@ To insert data, run `python3 insertDB.py` when the server is open. And `searchDB
  {'details': '', 'key': '189_0', 'meta': '', 'score': 0.5968195796012878}, 
  {'details': '', 'key': '683_0', 'meta': '', 'score': 0.6704939603805542}]
 ```
-where "key" is a unique id of each record in the database and the "score" is the L2 distance between face features. "Key" is organized as "imageDir_imageFileName", thus one can use key to locate the target image. For example, use "38_0" we can find the first face in 38.png by "the/dir/you/store/images_output/38/0.png" and the corresponding original image by "the/dir/you/store/images_output/38/origin.png".
+where "key" is a unique id of each record in the database and the "score" is the L2 distance between face features. "Key" is organized as "imageDir_imageFileName", thus one can use key to locate the target image. For example, use "38_0" we can find the first face in 38.png by `the/dir/you/store/images_output/38/0.png` and the corresponding original image by `the/dir/you/store/images_output/38/origin.png`.
 
         
              
