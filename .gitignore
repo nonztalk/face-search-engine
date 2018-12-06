@@ -3,3 +3,5 @@ __pycache__/
 
 # Ignore model
 20180402-114759/
+
+.DS_Store

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Success</title>
+</head>
+<body>
+    <h1>Upload new image for face search engine</h1>
+    <form action="" enctype='multipart/form-data' method='POST'>
+        <input type="file" name="file" style="margin-top:20px;"/>
+        <br>
+        <!--
+        <i>Username: </i>
+        <input type="text" class="txt_input" name="name"  value="admin" style="margin-top:10px;"/>
+        -->
+        <input type="submit" value="Upload" class="button-new" style="margin-top:15px;"/>
+    </form>
+    <br></br>
+    <!-- <h2>Username: {{userinput}}</h2> -->
+    <img src="{{ url_for('static', filename= './images/test.jpg') }}" width="30%" height="30%" alt="Can't display this image!"/>
+    <br></br>
+
+    <form action="/upload/analyze" method="POST">
+        <input type="submit" value="Analyze" class="button-new" style="margin-top:15px;"/>
+    </form>
+    
+</body>
+</html>
