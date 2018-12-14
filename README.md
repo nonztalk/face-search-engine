@@ -60,6 +60,53 @@ To insert data, run `python3 insertDB.py` when the server is open. And `searchDB
  {'details': '', 'key': '683_0', 'meta': '', 'score': 0.6704939603805542}]
 ```
 where "key" is a unique id of each record in the database and the "score" is the L2 distance between face features. "Key" is organized as "imageDir_imageFileName", thus one can use key to locate the target image. For example, use "38_0" we can find the first face in 38.png by `the/dir/you/store/images_output/38/0.png` and the corresponding original image by `the/dir/you/store/images_output/38/origin.png`.
-
+## 3. A guidance for playing
+To construct your own database and search engine, after cloning this repository, you also need to do several modifications on the code.  
+face_main.py: 
+```python
+MODEL_PATH = '20180402-114759/model-20180402-114759' # change to your model path
+ORIGINAL_IMAGE = glob('./sample_image/*.*')
+IMAGE_OUTPUT_PATH = "./sample_output/" # define your own input and output directory
+```
+insertDB.py
+```python3
+IMAGE_OUTPUT_PATH = "./image_output/" # Your own output directory
+client = fawn.Fawn('http://127.0.0.1:8000') # change the url to your server
+                                            # if you run on your own computer, just need to change the port number same as the XML
+                                            # Note that now the code only support local server
+```
+app.py
+```
+MODEL_PATH = '/ssd/shaochwu/project_650/20180402-114759/model-20180402-114759' # Change to your model path
+@app.route('/<path:path>')
+def send_img(path):
+    return send_from_directory('/ssd/dengkw/Project/image_output/',path) # change to your own output directory
+```
+Now you may be able to build your playground
+### 3.1 Process the image collection
+```bash
+python3 face_main.py
+```
+### 3.2 construct the support database
+```bash
+# initialize database
+bash reset.sh
+# open the server (do not close it when you are inserting and searching)
+# So I recommend to use `screen`
+./server
+# insert the face data
+python3 insertDB.py
+```
+### 3.3 open the application and play
+```bash
+python3 app.py
+```
+If your search engine is constructed on the remote server, to open the app on the local, you need to:
+```bash
+# Suppose the app is opened at the port 8000
+# And the address of your remote server is username@10.9.8.7
+ssh -L 8000:localhost:8000 username@10.9.8.7
+# And then open a browser and type localhost:8000
+```
         
              
