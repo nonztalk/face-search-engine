@@ -1,10 +1,11 @@
+import sys
 import os
 import cv2
+import urllib.request
 import pickle
 import numpy as np
 import tensorflow as tf
 from tensorflow.python.framework import meta_graph
-from pyseeta import Detector
 
 
 class Model:
@@ -23,42 +24,42 @@ class Model:
 
 
 class Face:
-    def __init__(self, image_path, output_dir, min_face_size):
-        self.image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    def __init__(self, image_path, output_dir, is_url = False, key=None):
+        if is_url:
+            self.image = read_image_url(image_path)
+            self.url = image_path
+        else:
+            self.image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+            self.url = None
         self.image_grey = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.image_size = self.image.shape  # height, width, channel
         self.output_dir = output_dir
-        self.min_face_size = min_face_size
 
         self.faces = None
         self.faces_matrices = []
         self.num_faces = 0
         self.face_features = []
         self.face_info = []
+        self.key = key  # key is barcode
 
-    def detect_face(self):
-        detector = Detector()
-        detector.set_min_face_size(self.min_face_size)
+    def detect_face(self, detector):
+        # detector from detector class in pyseeta
         print('Detecting and clipping faces =>>>')
         self.faces = detector.detect(self.image_grey)
         self.num_faces = len(self.faces)
         print('%d faces detected' % self.num_faces)
-        detector.release()
-
-    def write_origin(self):
-        cv2.imwrite(os.path.join(self.output_dir, 'origin.png'), self.image)
-        print("Origin writing Success!")
+        sys.stdout.flush()
 
     def write_clip(self, write_to_file = False):
         for i, face in enumerate(self.faces):
             if face.left < 0:
                 face.left = 0
-            if face.bottom < 0:
-                face.bottom = 0
+            if face.top < 0:
+                face.top = 0
             if face.right > self.image_size[1]:
                 face.right = self.image_size[1]
-            if face.top > self.image_size[0]:
-                face.top = self.image_size[0]
+            if face.bottom > self.image_size[0]:
+                face.bottom = self.image_size[0]
             clipped_face = self.image[face.top:face.bottom, face.left:face.right]
             self.faces_matrices.append(clipped_face)
             if write_to_file:
@@ -74,13 +75,6 @@ class Face:
                         thickness=1)
         cv2.imwrite(os.path.join(self.output_dir, "label.png"), self.image)
         print("Label writing Success!")
-
-    def draw_bounding_box(self, face_index):
-        assert face_index < self.num_faces, 'We only have %s faces' % self.num_faces
-        face = [f for f in self.face_info if f['ID'] == eval(face_index)][0]
-        cv2.rectangle(self.image, (face['left'], face['top']), (face['right'], face['bottom']), (0, 255, 0), thickness=2)
-        cv2.putText(self.image, str(face_index), (face['left'], face['bottom']), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 255, 0),
-                    thickness=1)
 
     def vectorize(self, sess, model, model_input_size=(160, 160)):
         for i, face in enumerate(self.faces_matrices, start=1):
@@ -99,16 +93,25 @@ class Face:
                 'right': face.right,
                 'top': face.top,
                 'bottom': face.bottom,
+                'height': self.image_size[0],
+                'width': self.image_size[1],
+                'channel': self.image_size[2],
                 'score': face.score,
-                'vector': self.face_features[i]
+                'vector': None,
             })
-        write_pickle(target_dir=self.output_dir, filename=filename, obj=self.face_info)
+        info = {'key': self.key,
+                'url': self.url,
+                'faces': self.face_info}
+                
+        write_pickle(target_dir=self.output_dir, filename=filename, obj=info)
         print("Done!\n")
 
     def load_info(self, filename):
         info = read_pickle(target_dir=self.output_dir, filename=filename)
-        self.face_info = info
-        self.num_faces = len(info)
+        self.key = info['key']
+        self.url = info['url']
+        self.face_info = info['faces']
+        self.num_faces = len(self.face_info)
 
 
 def write_pickle(target_dir, filename, obj):
@@ -117,6 +120,14 @@ def write_pickle(target_dir, filename, obj):
 
 def read_pickle(target_dir, filename):
     return pickle.load(open(os.path.join(target_dir, filename), 'rb'))
+
+
+def read_image_url(url):
+    resp = urllib.request.urlopen(url)
+    image = np.asarray(bytearray(resp.read()), dtype='uint8')
+    image = cv2.imdecode(image, cv2.IMREAD_COLOR)
+    return image
+
 
 
 # if __name__ == '__main__':

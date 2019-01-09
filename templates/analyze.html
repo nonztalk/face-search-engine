@@ -1,90 +1,64 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Analyzed</title>
-    <link <link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/hover.css') }}">
+	<meta charset="UTF-8">
+	<link href="https://fonts.googleapis.com/css?family=Open+Sans:100,300,400,600" rel="stylesheet" type="text/css">
+	<link href="http://code.ionicframework.com/ionicons/2.0.1/css/ionicons.min.css" rel="stylesheet" type="text/css">
+	<link rel= "stylesheet" type= "text/css" href= "{{ url_for('static',filename='styles/hover.css') }}">
+	<title>Face Search Engine</title>
 </head>
 <body>
-    <h1>Analyzed image results</h1>
+	<div class="title">
+		<h1>Face Search Engine</h1>
+	</div>
 
-    <!--
-    <form action="" enctype='multipart/form-data' method='POST'>
-        <input type="file" name="file" style="margin-top:20px;"/>
-        <br>
-        
-        <i>Username: </i>
-        <input type="text" class="txt_input" name="name"  value="admin" style="margin-top:10px;"/>
-        
-        <input type="submit" value="Upload" class="button-new" style="margin-top:15px;"/>
-    </form>
-    <br></br>
-    -->
+	<!-- Upload image from both url and local image file -->
+	<div class="upload">
+		<div class="upload__file">
+			<form action="" enctype="multipart/form-data" method="POST">
+				<input type="file" name="file" class="image__file"/>
+				<input type="submit" value="Analyze" class="upload__btn"/>
+			</form>
+		</div>
+	</div>
 
-    <!-- <h2>Username: {{userinput}}</h2> -->
-    <img src="{{ url_for('static', filename= './images/test.jpg') }}" width="30%" height="30%" alt="Can't display this image!"/>
-    <br></br>
+	<!-- Display the uploaded image -->
+	<img src="{{ url_for('static', filename='./images/'+directUniqueName+'/'+fileUniqueName) }}" width="30%" height="30%" alt="Can't display this image!" class="origin__image"/>
 
-    <form action="/upload/analyze" method="POST">
-        <input type="submit" value="Analyze" class="button-new" style="margin-top:15px;"/>
-    </form>
-    <br></br>
-
-    <form action="/upload" method="GET">
-        <input type="submit" value="New Image" class="button-new" style="margin-top:15px;"/>
-    </form>
-    <br></br>
-
-    <table align="center" border="0" cellpadding="20" cellspacing="0" width="100%">
-    <tbody>
-        <tr>
-            <td>Detected Faces</td>
-            <td>Similar Faces1</td>
-            <td>Similar Faces2</td>
-            <td>Similar Faces3</td>
-            <td>Similar Faces4</td>
-            <td>Similar Faces5</td>
-        </tr>
-        {% for f in input_faces %}
-            <tr><td><img src="{{ url_for('static', filename= './images/'+f) }}" width="100px" alt="Cannot show this face" /></td>
-                {% for out in output_faces[f] %}
-                    {% set origin = origin_img[f][loop.index-1] %}
-                    <td>
-                        <div class="imageBox">
-                          <div class="imageInn">
-                            <img src="{{ url_for('send_img', path=out) }}" width="100px" alt="Default Image">
-                          </div>
-                          <div class="hoverImg">
-                            <img src="{{ url_for('send_img', path=origin) }}" width="300px" alt="Profile Image">
-                          </div>
-                        </div>
-                    </td>
-                {% endfor %}
-            </tr>
-            <tr>
-                <td>Scores: </td>
-                {% for s in output_scores[f] %}
-                    <td><p>{{ s }}</p></td>
-                {% endfor %}
-            </tr>
-        {% endfor %}
-        
-<!--
-     <tr>
-        <td width="100%">
-         
-         <p class="text-justify">
-            <font size="3">
-             <br>
-              I built C++ program from scratch to manipulate PPM images (crop, add shapes, highlight). Visit <a href="https://github.com/markutz556/EECS402" target="_blank">Github</a> for source code.
-             </br>
-            </font>
-         </p>
-        </td>
-     </tr>
--->
-    </tbody>
-    </table>
+	<!-- Analyze the uploaded image -->
+	<table align="center" border="0" cellpadding="20" cellspacing="0" width="100%" class="result__table">
+		<tbody>
+			<tr>
+				<td>Detected face</td>
+				{% for col in column_names %}
+					<td>{{ col }}</td>
+				{% endfor %}
+			</tr>
+			{% for f in input_faces %}
+				<tr><td><img src="{{ url_for('static', filename='./images/'+directUniqueName+'/'+f) }}" width="100px" alt="Cannot show this face" /></td>
+					{% for out in output_faces[f] %}
+						{% set origin = origin_img[f][loop.index-1] %}
+						<td>
+							<div class="imageBox">
+							  <div class="imageInn">
+								<img src="{{ url_for('send_img', path=out) }}" width="100px" alt="Default Image">
+							  </div>
+							  <div class="hoverImg">
+								<img src="{{ origin }}", width="300px" alt="Profile Image">
+							  </div>
+							</div>
+						</td>
+					{% endfor %}
+				</tr>
+				<tr>
+					<td>Scores: </td>
+					{% for s in output_scores[f] %}
+						<td><p>{{ s }}</p></td>
+					{% endfor %}
+				</tr>
+        	{% endfor %}
+		</tbody>
+	</table>
 
 </body>
 </html>

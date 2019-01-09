@@ -14,7 +14,7 @@ DIM = 512
 
 
 class Fawn:
-    def __init__(self, url='http://127.0.0.1:18000'):
+    def __init__(self, url='http://127.0.0.1:8888'):
         self.session = requests.Session()
         self.url = url
 
