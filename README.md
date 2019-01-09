@@ -22,91 +22,51 @@ model-20180402-114759.data-00000-of-00001
 |-----------------|--------------|------------------|--------------|
 | [20180402-114759](https://drive.google.com/open?id=1EXPBSXwTaqrSC0OhUdXNmKSh9qJUQ55-) | 0.9965        | VGGFace2      | [Inception ResNet v1](https://github.com/davidsandberg/facenet/blob/master/src/models/inception_resnet_v1.py) |
 ## 1. Face collection
-In order to construct the search engine, the very first thing is to collect the faces, and manage their information in a well-defined file structure. Here is directory tree in our project:  
-Suppose the image is 00000000.png, and pyseeta detects 3 faces, the output should be:
+In order to construct the search engine, the very first thing is to collect the faces, and manage their information in a well-defined file structure. In the final version of our project, we have 1000000 celebrity images in our database (data not shown here for privacy consideration), and the input of these data is a lists structured as `[barcode, thumbnail_url, origin_url]`. Suppose the barcode is acd8b762, the corresponding directory structure should be:
 ```bash
-|-- output_dir
-    `-- 00000000
-        |-- 0.png
-        |-- 1.png
-        |-- 2.png
-        |-- info
-        |-- label.png
-        `-- origin.png
+|-- data
+    `-- b7
+        `-- 62
+            `-- acd8b762
+                |-- 0.png
+                |-- 1.png
+                |-- 2.png
+                |-- info
+                |-- features.npy
 ```
-0.png, 1.png, 2.png are the three clipped faces from 00000000.png, and origin.png, label.png are the original image and image with bounding boxes. Info is a binary file that store the face information in a dictionary:
+0.png, 1.png, 2.png are the three clipped faces for acd8b762. Info is a binary file that store the face information in a dictionary, and features.npy stores the feature vectors for each clipped face. 
 ```python
 {
-  'ID': i,                          # face id
-  'left': face.left,                # bounding box coordinates
-  'right': face.right,
-  'top': face.top,
-  'bottom': face.bottom,
-  'score': face.score,              # face score
-  'vector': face_feature            # face extracted feature
+    'key': barcode
+    'url': origin_url
+    'info': {
+      'ID': i,                          # face id
+      'left': face.left,                # bounding box coordinates
+      'right': face.right,
+      'top': face.top,
+      'bottom': face.bottom,
+      'height': image_height,
+      'width': image_width,
+      'channel': image_channel,
+      'score': face.score,              # face score
+      'vector': face_feature            # face extracted feature
+                                        # When dealing with the data, this will be set as None, because these data are stored in the .npy file                     
+    }
 }
 ```
-To run the example, just simply run `python3 face_main.py`. The generated files are stored in `sample_output`.  
-To construct your own collection, just set `ORIGINAL_IMAGE=glob("your/image/path")` and `IMAGE_OUTPUT_PATH = "your/output/dir"` in `face_main.py`
+`face_detect.py` is used to detect faces, and generate the clipped face files and info. `face_vectorize.py` is used to generate the features.npy.
+
 ## 2. Construct search engine
 The donkey framework have already compiled in this repository. To construct a new database for the search engine, one needs to run `bash reset.sh` to reset the database, and open server `./server` before insert the data.  
 In `donkey.xml` we define the address and port of the server. When changing them in the XML file, the corresponding code in `fawn.py` should also change.  
-To insert data, run `python3 insertDB.py` when the server is open. And `searchDB.py` is a sample code that show the example of searching similar faces. The similarity is defined as L2 distance. Here is a running example which finds the 5 most similar face (the data is not included in the sample_image):
+To insert data, run `python3 insertDB.py` when the server is open. And `searchDB.py` is a sample code that show the example of searching similar faces. The similarity is defined as L2 distance. Here is a running example which finds the 5 most similar face:
 ```bash
-[{'details': '', 'key': '38_0', 'meta': '', 'score': 0.2991769015789032}, 
- {'details': '', 'key': '18_0', 'meta': '', 'score': 0.5391111969947815}, 
- {'details': '', 'key': '32_0', 'meta': '', 'score': 0.5569632053375244}, 
- {'details': '', 'key': '189_0', 'meta': '', 'score': 0.5968195796012878}, 
- {'details': '', 'key': '683_0', 'meta': '', 'score': 0.6704939603805542}]
+[{'key': 'data/s0/63/acecs063/0', 'meta': 'https://thumbnail/url/acecs063.jpg', 'details': '', 'score': 0.7011203765869141}, 
+ {'key': 'data/30/74/acea3074/4', 'meta': 'https://thumbnail/url/acea3074.jpg', 'details': '', 'score': 0.7307677268981934}, 
+ {'key': 'data/03/90/acdv0390/1', 'meta': 'https://thumbnail/url/acdv0390.jpg', 'details': '', 'score': 0.737593948841095}, 
+ {'key': 'data/u2/19/acebu219/0', 'meta': 'https://thumbnail/url/acebu219.jpg', 'details': '', 'score': 0.7520275115966797}, 
+ {'key': 'data/x8/53/acdhx853/0', 'meta': 'https://thumbnail/url/acdhx853.jpg', 'details': '', 'score': 0.7825058698654175}]
 ```
-where "key" is a unique id of each record in the database and the "score" is the L2 distance between face features. "Key" is organized as "imageDir_imageFileName", thus one can use key to locate the target image. For example, use "38_0" we can find the first face in 38.png by `the/dir/you/store/images_output/38/0.png` and the corresponding original image by `the/dir/you/store/images_output/38/origin.png`.
-## 3. A guidance for playing
-To construct your own database and search engine, after cloning this repository, you also need to do several modifications on the code.  
-face_main.py: 
-```python
-MODEL_PATH = '20180402-114759/model-20180402-114759' # change to your model path
-ORIGINAL_IMAGE = glob('./sample_image/*.*')
-IMAGE_OUTPUT_PATH = "./sample_output/" # define your own input and output directory
-```
-insertDB.py
-```python3
-IMAGE_OUTPUT_PATH = "./image_output/" # Your own output directory
-client = fawn.Fawn('http://127.0.0.1:8000') # change the url to your server
-                                            # if you run on your own computer, just need to change the port number same as the XML
-                                            # Note that now the code only support local server
-```
-app.py
-```
-MODEL_PATH = '/ssd/shaochwu/project_650/20180402-114759/model-20180402-114759' # Change to your model path
-@app.route('/<path:path>')
-def send_img(path):
-    return send_from_directory('/ssd/dengkw/Project/image_output/',path) # change to your own output directory
-```
-Now you may be able to build your playground
-### 3.1 Process the image collection
-```bash
-python3 face_main.py
-```
-### 3.2 construct the support database
-```bash
-# initialize database
-bash reset.sh
-# open the server (do not close it when you are inserting and searching)
-# So I recommend to use `screen`
-./server
-# insert the face data
-python3 insertDB.py
-```
-### 3.3 open the application and play
-```bash
-python3 app.py
-```
-If your search engine is constructed on the remote server, to open the app on the local, you need to:
-```bash
-# Suppose the app is opened at the port 8000
-# And the address of your remote server is username@10.9.8.7
-ssh -L 8000:localhost:8000 username@10.9.8.7
-# And then open a browser and type localhost:8000
-```
+
         
              
